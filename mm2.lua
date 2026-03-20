@@ -1,15 +1,15 @@
 --[[
     Quantum X | Murder Mystery 2
-    WindUI Library
+    Single file – works with any executor
 ]]
 
 if getgenv().QuantumX_MM2_Loaded then return end
 getgenv().QuantumX_MM2_Loaded = true
 
--- ===== ŁADOWANIE WINDUI =====
+-- ===== LOAD WINDUI =====
 local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/zzerexx/WindUI/main/source.lua"))()
 
--- ===== KONFIGURACJA =====
+-- ===== CONFIG =====
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local lp = Players.LocalPlayer
@@ -22,7 +22,7 @@ getgenv().MM2Config = {
     speedValue = 16,
 }
 
--- ===== FUNKCJE POMOCNICZE =====
+-- ===== UTILITIES =====
 local function getChar()
     return lp.Character
 end
@@ -32,9 +32,8 @@ local function getHumanoid()
     return c and c:FindFirstChildOfClass("Humanoid")
 end
 
--- ESP (Highlight)
+-- ===== ESP =====
 local function setupESP()
-    local highlight
     while getgenv().MM2Config.espEnabled do
         for _, plr in pairs(Players:GetPlayers()) do
             if plr ~= lp and plr.Character then
@@ -47,14 +46,13 @@ local function setupESP()
                     hl.OutlineTransparency = 0
                     hl.OutlineColor = Color3.fromRGB(255,255,255)
                 end
-                -- kolor: jeśli ma nóż to czerwony, inaczej zielony
                 local hasKnife = plr.Character:FindFirstChild("Knife") or plr.Backpack:FindFirstChild("Knife")
                 hl.FillColor = hasKnife and Color3.fromRGB(255,0,0) or Color3.fromRGB(0,255,0)
             end
         end
         task.wait(0.2)
     end
-    -- po wyłączeniu usuń wszystkie highlighty
+    -- cleanup
     for _, plr in pairs(Players:GetPlayers()) do
         if plr ~= lp and plr.Character then
             local hl = plr.Character:FindFirstChild("QuantumESP")
@@ -63,7 +61,7 @@ local function setupESP()
     end
 end
 
--- Auto collect (zbieranie prezentów/coins)
+-- ===== AUTO COLLECT =====
 local function autoCollectLoop()
     while getgenv().MM2Config.autoCollect do
         local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
@@ -82,15 +80,14 @@ local function autoCollectLoop()
     end
 end
 
--- Auto farm (proste – teleport do innych graczy i "bicie")
+-- ===== AUTO FARM =====
 local function autoFarmLoop()
     local lastAttack = 0
     local cooldown = 0.5
     while getgenv().MM2Config.autoFarm do
         local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
         if hrp then
-            local nearest = nil
-            local nearestDist = math.huge
+            local nearest, nearestDist = nil, math.huge
             for _, plr in pairs(Players:GetPlayers()) do
                 if plr ~= lp and plr.Character then
                     local target = plr.Character:FindFirstChild("HumanoidRootPart")
@@ -106,7 +103,6 @@ local function autoFarmLoop()
             if nearest then
                 hrp.CFrame = nearest.CFrame * CFrame.new(0,0,3)
                 if tick() - lastAttack > cooldown and nearestDist < 15 then
-                    -- symuluj atak (np. remote)
                     local remote = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
                     if remote then
                         local attackRemote = remote:FindFirstChild("Attack")
@@ -122,7 +118,7 @@ local function autoFarmLoop()
     end
 end
 
--- Speed hack
+-- ===== SPEED HACK =====
 RunService.Stepped:Connect(function()
     if getgenv().MM2Config.speedEnabled then
         local hum = getHumanoid()
@@ -132,18 +128,17 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- ===== GUI WINDUI =====
+-- ===== WINDUI GUI =====
 local Window = WindUI:CreateWindow({
     Title = "Quantum X | MM2",
     SubTitle = "by Quantum Team",
     Size = UDim2.new(0, 500, 0, 400),
-    Theme = "Amethyst", -- można zmienić, ale pasuje
+    Theme = "Amethyst",
 })
 
--- Główna zakładka
 local MainTab = Window:CreateTab({
     Title = "Main",
-    Icon = "rbxassetid://4483362458", -- dowolna ikona
+    Icon = "rbxassetid://4483362458",
 })
 
 MainTab:CreateSection("ESP")
@@ -199,7 +194,7 @@ MainTab:CreateSlider({
     end
 })
 
--- Zakładka Scripts (dodatkowe loadery)
+-- Additional scripts tab
 local ScriptsTab = Window:CreateTab({
     Title = "Scripts",
     Icon = "rbxassetid://4483362458",
@@ -223,7 +218,6 @@ ScriptsTab:CreateButton({
     end
 })
 
--- Zakładka Credits
 local CreditsTab = Window:CreateTab({
     Title = "Credits",
     Icon = "rbxassetid://4483362458",
