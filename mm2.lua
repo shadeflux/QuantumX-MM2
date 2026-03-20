@@ -1,6 +1,7 @@
 --[[
     Quantum X | Murder Mystery 2
     ESP + Nameplates + Gun ESP + Teleport to Gun
+    WindUI with full settings, fallback theme
 ]]
 
 if getgenv().QuantumX_MM2_Loaded then return end
@@ -51,12 +52,11 @@ local function getRoleInfo(plr)
     return "Innocent", Color3.fromRGB(0,255,0)
 end
 
--- ===== CREATE NAMEPLATE (BillboardGui) =====
+-- ===== NAMEPLATE (BillboardGui) =====
 local function createNameplate(plr, role, color)
     local char = plr.Character
     if not char then return end
 
-    -- Remove old nameplate if exists
     local old = char:FindFirstChild("QuantumNameplate")
     if old then old:Destroy() end
 
@@ -80,17 +80,7 @@ local function createNameplate(plr, role, color)
     billboard.Parent = char
 end
 
--- ===== UPDATE ALL NAMEPLATES =====
-local function updateNameplates()
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= lp and plr.Character then
-            local role, color = getRoleInfo(plr)
-            createNameplate(plr, role, color)
-        end
-    end
-end
-
--- ===== REMOVE ALL NAMEPLATES =====
+-- ===== UPDATE/REMOVE NAMEPLATES =====
 local function removeNameplates()
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr.Character then
@@ -119,12 +109,13 @@ local function espLoop()
                 highlight.FillColor = color
 
                 -- Nameplate (update each loop to catch role changes)
-                createNameplate(plr, getRoleInfo(plr))
+                local role, _ = getRoleInfo(plr)
+                createNameplate(plr, role, color)
             end
         end
         task.wait(0.2)
     end
-    -- cleanup when disabled
+    -- cleanup
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= lp and plr.Character then
             local highlight = plr.Character:FindFirstChild("QuantumESP")
@@ -136,13 +127,13 @@ end
 
 -- ===== FIND DROPPED GUN (not held by any player) =====
 local function getDroppedGun()
-    local best, bestDist = nil, math.huge
     local hrp = getChar() and getChar():FindFirstChild("HumanoidRootPart")
     if not hrp then return nil end
 
+    local best, bestDist = nil, math.huge
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("Model") and (obj.Name == "Gun" or obj.Name == "GunDrop" or obj.Name:lower():find("gun")) then
-            -- Check if this gun is inside a player's character (i.e., still held)
+            -- Check if gun is held by any player
             local held = false
             for _, plr in ipairs(Players:GetPlayers()) do
                 if plr.Character and obj:IsDescendantOf(plr.Character) then
@@ -170,7 +161,6 @@ local function gunEspLoop()
     while getgenv().MM2Config.gunEspEnabled do
         for _, obj in ipairs(workspace:GetDescendants()) do
             if obj:IsA("Model") and (obj.Name == "Gun" or obj.Name == "GunDrop" or obj.Name:lower():find("gun")) then
-                -- Check if held
                 local held = false
                 for _, plr in ipairs(Players:GetPlayers()) do
                     if plr.Character and obj:IsDescendantOf(plr.Character) then
@@ -240,13 +230,13 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- ===== WINDUI GUI (z motywem Amethyst) =====
-local Window = WindUI:CreateWindow({
+-- ===== WINDUI GUI (z pełnymi ustawieniami i zabezpieczeniem) =====
+local windowSettings = {
     Title = "Quantum X | MM2",
     SubTitle = "by Quantum Team",
     Size = UDim2.new(0, 500, 0, 450),
     Transparent = true,
-    Theme = "Amethyst",
+    Theme = "Amethyst",  -- jeśli nie działa, użyjemy fallback
     Resizable = true,
     SideBarWidth = 200,
     BackgroundImageTransparency = 0.42,
@@ -259,7 +249,19 @@ local Window = WindUI:CreateWindow({
             print("User clicked")
         end,
     },
-})
+}
+
+-- Próba utworzenia okna z podanym motywem; jeśli błąd, użyj "Dark"
+local Window
+local success, err = pcall(function()
+    Window = WindUI:CreateWindow(windowSettings)
+end)
+
+if not success then
+    warn("Theme 'Amethyst' failed, using default 'Dark'")
+    windowSettings.Theme = "Dark"
+    Window = WindUI:CreateWindow(windowSettings)
+end
 
 -- Main Tab
 local MainTab = Window:Tab({
@@ -277,8 +279,6 @@ MainTab:Toggle({
         getgenv().MM2Config.espEnabled = v
         if v then
             task.spawn(espLoop)
-        else
-            -- cleanup will be done inside loop after exit
         end
     end
 })
