@@ -1,13 +1,16 @@
 --[[
     Quantum X | Murder Mystery 2
     Single file – works with any executor
+    WindUI: official version from Footagesus
 ]]
 
 if getgenv().QuantumX_MM2_Loaded then return end
 getgenv().QuantumX_MM2_Loaded = true
 
--- ===== LOAD WINDUI =====
+-- ===== LOAD OFFICIAL WINDUI =====
+-- Based on: https://footagesus.github.io/WindUI-Docs/docs/load-windui
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+
 -- ===== CONFIG =====
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -222,6 +225,6 @@ local CreditsTab = Window:CreateTab({
     Icon = "rbxassetid://4483362458",
 })
 CreditsTab:CreateLabel("Quantum X | Murder Mystery 2")
-CreditsTab:CreateLabel("UI: WindUI")
+CreditsTab:CreateLabel("UI: WindUI (Footagesus)")
 CreditsTab:CreateLabel("Developed by Quantum Team")
 CreditsTab:CreateLabel("Discord: discord.gg/quantumx")
