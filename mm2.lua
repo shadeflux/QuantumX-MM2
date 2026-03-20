@@ -1,6 +1,6 @@
 --[[
     Quantum X | Murder Mystery 2
-    Final version – all features working
+    Final – fixed Auto Shoot (Sheriff) and Auto Farm Escape
 ]]
 
 if getgenv().QuantumX_MM2_Loaded then return end
@@ -35,8 +35,6 @@ getgenv().MM2Config = {
     dieAtFullBag = false,
     teleportUnderMapFullBag = false,
     autoFlingMurderer = false,
-    teleportSpeed = 16,
-    heightOffset = -4,
     safeDistance = 30, -- fixed
 }
 
@@ -248,7 +246,7 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- ===== AUTO FARM COINS (przyspieszony, z unikaniem mordercy) =====
+-- ===== AUTO FARM COINS (z ucieczką przed mordercą) =====
 local function coinFarmLoop()
     while getgenv().MM2Config.autoFarmCoins do
         local hrp = getChar() and getChar():FindFirstChild("HumanoidRootPart")
@@ -266,41 +264,57 @@ local function coinFarmLoop()
             end
         end
 
-        -- Znajdź najbliższą monetę
-        local nearestCoin, nearestDist = nil, math.huge
+        -- Zbierz wszystkie monety
+        local coins = {}
         for _, coin in ipairs(Workspace:GetDescendants()) do
             if coin:IsA("Model") and (coin.Name:lower():find("coin") or coin.Name:lower():find("money")) then
                 local part = coin:FindFirstChildWhichIsA("BasePart")
                 if part then
-                    local dist = (part.Position - hrp.Position).Magnitude
-                    if dist < nearestDist then
-                        nearestDist = dist
-                        nearestCoin = part
+                    table.insert(coins, {model = coin, part = part})
+                end
+            end
+        end
+        if #coins == 0 then task.wait(0.05); continue end
+
+        -- Jeśli morderca istnieje, znajdź monetę bezpieczną (daleko od mordercy)
+        if murdererChar then
+            local mPos = murdererChar:FindFirstChild("HumanoidRootPart")
+            if mPos then
+                -- Sprawdź odległość od obecnej pozycji do mordercy
+                local distToMurderer = (mPos.Position - hrp.Position).Magnitude
+                if distToMurderer < getgenv().MM2Config.safeDistance then
+                    -- Znajdź monetę najdalej od mordercy
+                    local farthestCoin, farthestDist = nil, -math.huge
+                    for _, coin in ipairs(coins) do
+                        local coinDist = (mPos.Position - coin.part.Position).Magnitude
+                        if coinDist > farthestDist then
+                            farthestDist = coinDist
+                            farthestCoin = coin.part
+                        end
+                    end
+                    if farthestCoin then
+                        hrp.CFrame = farthestCoin.CFrame * CFrame.new(0, 2, 0)
+                        task.wait(0.2) -- chwila na teleport
+                        continue -- od razu przejdź do następnej iteracji, żeby nie wrócić do niebezpiecznej monety
                     end
                 end
             end
         end
 
-        if nearestCoin then
-            -- Sprawdź odległość od mordercy
-            local safe = true
-            if murdererChar then
-                local mPos = murdererChar:FindFirstChild("HumanoidRootPart")
-                if mPos then
-                    local distToMurderer = (mPos.Position - nearestCoin.Position).Magnitude
-                    if distToMurderer < getgenv().MM2Config.safeDistance then
-                        safe = false
-                        -- pomiń tę monetę
-                        task.wait(0.05)
-                        continue
-                    end
-                end
-            end
-            if safe then
-                hrp.CFrame = nearestCoin.CFrame * CFrame.new(0, 2, 0)
+        -- Normalne zbieranie – znajdź najbliższą monetę
+        local nearestCoin, nearestDist = nil, math.huge
+        for _, coin in ipairs(coins) do
+            local dist = (coin.part.Position - hrp.Position).Magnitude
+            if dist < nearestDist then
+                nearestDist = dist
+                nearestCoin = coin.part
             end
         end
-        task.wait(0.05) -- szybkie zbieranie
+
+        if nearestCoin then
+            hrp.CFrame = nearestCoin.CFrame * CFrame.new(0, 2, 0)
+        end
+        task.wait(0.05)
     end
 end
 
@@ -385,10 +399,9 @@ local function autoFlingMurdererLoop()
                         if hrp then
                             hrp.CFrame = target.CFrame * CFrame.new(0, 0, 3)
                             -- symulacja strzału
-                            local remote = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+                            local remote = game:GetService("ReplicatedStorage"):FindFirstChild("RemoteEvent")
                             if remote then
-                                local shootRemote = remote:FindFirstChild("Shoot")
-                                if shootRemote then shootRemote:FireServer(target) end
+                                remote:FireServer("Shoot", target)
                             end
                         end
                     end
@@ -399,12 +412,12 @@ local function autoFlingMurdererLoop()
     end
 end
 
--- ===== KILL ALL AS MURDERER (z auto-equip noża) =====
+-- ===== KILL ALL AS MURDERER =====
 local function killAllMurdererLoop()
     while getgenv().MM2Config.killAllMurderer do
         local myRole, _ = getRoleInfo(lp)
         if myRole == "Murderer" then
-            -- Auto-equip knife jeśli nie jest w ręku
+            -- Auto-equip knife
             local knife = lp.Character:FindFirstChild("Knife")
             if not knife then
                 knife = lp.Backpack:FindFirstChild("Knife")
@@ -412,18 +425,15 @@ local function killAllMurdererLoop()
                     knife.Parent = lp.Character
                 end
             end
-            -- Atakuj wszystkich oprócz siebie
             for _, plr in ipairs(Players:GetPlayers()) do
                 if plr ~= lp and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
                     local target = plr.Character.HumanoidRootPart
                     local hrp = getChar() and getChar():FindFirstChild("HumanoidRootPart")
                     if hrp then
                         hrp.CFrame = target.CFrame * CFrame.new(0, 0, 3)
-                        -- Symulacja ataku
-                        local remote = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+                        local remote = game:GetService("ReplicatedStorage"):FindFirstChild("RemoteEvent")
                         if remote then
-                            local attackRemote = remote:FindFirstChild("Attack")
-                            if attackRemote then attackRemote:FireServer(target) end
+                            remote:FireServer("Attack", target)
                         end
                         task.wait(0.2)
                     end
@@ -434,12 +444,12 @@ local function killAllMurdererLoop()
     end
 end
 
--- ===== KILL MURDERER AS SHERIFF (z auto-equip pistoletu i strzałem) =====
+-- ===== KILL MURDERER AS SHERIFF (z auto-equip i strzałem) =====
 local function killMurdererSheriffLoop()
     while getgenv().MM2Config.killMurdererSheriff do
         local myRole, _ = getRoleInfo(lp)
         if myRole == "Sheriff" then
-            -- Auto-equip gun jeśli nie jest w ręku
+            -- Auto-equip gun
             local gun = lp.Character:FindFirstChild("Gun")
             if not gun then
                 gun = lp.Backpack:FindFirstChild("Gun")
@@ -455,11 +465,9 @@ local function killMurdererSheriffLoop()
                         local hrp = getChar() and getChar():FindFirstChild("HumanoidRootPart")
                         if hrp then
                             hrp.CFrame = target.CFrame * CFrame.new(0, 0, 5)
-                            -- Strzelaj
-                            local remote = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+                            local remote = game:GetService("ReplicatedStorage"):FindFirstChild("RemoteEvent")
                             if remote then
-                                local shootRemote = remote:FindFirstChild("Shoot")
-                                if shootRemote then shootRemote:FireServer(target) end
+                                remote:FireServer("Shoot", target)
                             end
                             task.wait(0.3)
                         end
@@ -479,7 +487,6 @@ local function autoPickupGunLoop()
             local hrp = getChar() and getChar():FindFirstChild("HumanoidRootPart")
             if hrp then
                 hrp.CFrame = gunPart.CFrame * CFrame.new(0, 2, 0)
-                -- symulacja podniesienia
                 local tool = gunPart.Parent
                 if tool:IsA("Tool") then
                     tool.Parent = lp.Backpack
@@ -534,7 +541,7 @@ MainTab:Button({ Title = "Teleport to Nearest Dropped Gun", Callback = teleportT
 local AutoTab = Window:Tab({ Title = "Auto", Icon = "rbxassetid://4483362458" })
 
 AutoTab:Section({ Title = "Farm" })
-AutoTab:Toggle({ Title = "Auto Farm Coins (Safe from Murderer)", Default = false, Callback = function(v) getgenv().MM2Config.autoFarmCoins = v; if v then task.spawn(coinFarmLoop) end end })
+AutoTab:Toggle({ Title = "Auto Farm Coins (Escapes Murderer)", Default = false, Callback = function(v) getgenv().MM2Config.autoFarmCoins = v; if v then task.spawn(coinFarmLoop) end end })
 AutoTab:Toggle({ Title = "Auto Open Crates", Default = false, Callback = function(v) getgenv().MM2Config.autoOpenCrates = v; if v then task.spawn(autoOpenCratesLoop) end end })
 
 AutoTab:Section({ Title = "Gun" })
@@ -561,7 +568,7 @@ local CreditsTab = Window:Tab({ Title = "Credits", Icon = "rbxassetid://44833624
 CreditsTab:AddLabel("Quantum X | Murder Mystery 2")
 CreditsTab:AddLabel("ESP: Murderer (red), Sheriff (blue), Innocent (green)")
 CreditsTab:AddLabel("Gun ESP: orange for dropped guns")
-CreditsTab:AddLabel("Auto Farm with Murderer Evasion (30 studs safe distance)")
+CreditsTab:AddLabel("Auto Farm with Murderer Evasion (teleport to farthest coin)")
 CreditsTab:AddLabel("Kill All (Murderer) auto-equips knife")
 CreditsTab:AddLabel("Kill Murderer (Sheriff) auto-equips gun and shoots")
 CreditsTab:AddLabel("UI: WindUI (Footagesus)")
