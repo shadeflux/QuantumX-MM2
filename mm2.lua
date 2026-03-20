@@ -7,8 +7,7 @@ if getgenv().QuantumX_MM2_Loaded then return end
 getgenv().QuantumX_MM2_Loaded = true
 
 -- ===== LOAD WINDUI =====
-local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/zzerexx/WindUI/main/source.lua"))()
-
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 -- ===== CONFIG =====
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
