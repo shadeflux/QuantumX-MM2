@@ -1,7 +1,6 @@
 --[[
     Quantum X | Murder Mystery 2
     ESP + Nameplates + Gun ESP + Teleport to Gun
-    WindUI with full settings, fallback theme
 ]]
 
 if getgenv().QuantumX_MM2_Loaded then return end
@@ -80,7 +79,7 @@ local function createNameplate(plr, role, color)
     billboard.Parent = char
 end
 
--- ===== UPDATE/REMOVE NAMEPLATES =====
+-- ===== REMOVE NAMEPLATES =====
 local function removeNameplates()
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr.Character then
@@ -108,7 +107,7 @@ local function espLoop()
                 local _, color = getRoleInfo(plr)
                 highlight.FillColor = color
 
-                -- Nameplate (update each loop to catch role changes)
+                -- Nameplate
                 local role, _ = getRoleInfo(plr)
                 createNameplate(plr, role, color)
             end
@@ -133,7 +132,6 @@ local function getDroppedGun()
     local best, bestDist = nil, math.huge
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("Model") and (obj.Name == "Gun" or obj.Name == "GunDrop" or obj.Name:lower():find("gun")) then
-            -- Check if gun is held by any player
             local held = false
             for _, plr in ipairs(Players:GetPlayers()) do
                 if plr.Character and obj:IsDescendantOf(plr.Character) then
@@ -230,38 +228,12 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- ===== WINDUI GUI (z pełnymi ustawieniami i zabezpieczeniem) =====
-local windowSettings = {
+-- ===== WINDUI GUI (basic settings only) =====
+local Window = WindUI:CreateWindow({
     Title = "Quantum X | MM2",
     SubTitle = "by Quantum Team",
     Size = UDim2.new(0, 500, 0, 450),
-    Transparent = true,
-    Theme = "Amethyst",  -- jeśli nie działa, użyjemy fallback
-    Resizable = true,
-    SideBarWidth = 200,
-    BackgroundImageTransparency = 0.42,
-    HideSearchBar = true,
-    ScrollBarEnabled = false,
-    User = {
-        Enabled = true,
-        Anonymous = false,
-        Callback = function()
-            print("User clicked")
-        end,
-    },
-}
-
--- Próba utworzenia okna z podanym motywem; jeśli błąd, użyj "Dark"
-local Window
-local success, err = pcall(function()
-    Window = WindUI:CreateWindow(windowSettings)
-end)
-
-if not success then
-    warn("Theme 'Amethyst' failed, using default 'Dark'")
-    windowSettings.Theme = "Dark"
-    Window = WindUI:CreateWindow(windowSettings)
-end
+})
 
 -- Main Tab
 local MainTab = Window:Tab({
