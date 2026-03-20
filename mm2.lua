@@ -8,6 +8,10 @@ getgenv().QuantumX_MM2_Loaded = true
 
 -- ===== LOAD WINDUI =====
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+if not WindUI then
+    warn("❌ WindUI failed to load")
+    return
+end
 
 -- ===== SERVICES =====
 local Players = game:GetService("Players")
@@ -34,24 +38,17 @@ local function getHumanoid()
 end
 
 -- ===== DETECT ROLE =====
--- In Murder Mystery 2:
---   murderer: has "Knife" in Character or Backpack
---   sheriff: has "Gun" in Character or Backpack
---   innocent: none of the above
 local function getRoleColor(plr)
     local char = plr.Character
-    if not char then return Color3.fromRGB(255,255,255) end -- white if no character
+    if not char then return Color3.fromRGB(255,255,255) end
 
-    -- Check for knife (murderer)
     if char:FindFirstChild("Knife") or (plr.Backpack and plr.Backpack:FindFirstChild("Knife")) then
-        return Color3.fromRGB(255,0,0) -- red
+        return Color3.fromRGB(255,0,0) -- red (murderer)
     end
-    -- Check for gun (sheriff)
     if char:FindFirstChild("Gun") or (plr.Backpack and plr.Backpack:FindFirstChild("Gun")) then
-        return Color3.fromRGB(0,100,255) -- blue
+        return Color3.fromRGB(0,100,255) -- blue (sheriff)
     end
-    -- Innocent
-    return Color3.fromRGB(0,255,0) -- green
+    return Color3.fromRGB(0,255,0) -- green (innocent)
 end
 
 -- ===== ESP LOOP =====
@@ -73,7 +70,7 @@ local function espLoop()
         end
         task.wait(0.2)
     end
-    -- Cleanup when disabled
+    -- cleanup
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= lp and plr.Character then
             local highlight = plr.Character:FindFirstChild("QuantumESP")
@@ -106,35 +103,23 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- ===== NO PC ERROR =====
-task.spawn(function()
-    while task.wait(0.1) do
-        if getgenv().MM2Config.noPcError then
-            pcall(function()
-                local vu = game:GetService("VirtualUser")
-                vu:CaptureController()
-                vu:ClickButton1(Vector2.new())
-            end)
-        end
-    end
-end)
-
--- ===== CREATE WINDOW (default theme) =====
+-- ===== WINDUI GUI (poprawna składnia) =====
 local Window = WindUI:CreateWindow({
     Title = "Quantum X | MM2",
     SubTitle = "by Quantum Team",
     Size = UDim2.new(0, 450, 0, 350),
-    -- no Theme specified → uses default
 })
 
--- ===== TAB: MAIN =====
-local MainTab = Window:CreateTab({
+-- Main Tab
+local MainTab = Window:Tab({
     Title = "Main",
     Icon = "rbxassetid://4483362458",
 })
 
-MainTab:CreateSection("Visuals")
-MainTab:CreateToggle({
+MainTab:Section({
+    Title = "Visuals",
+})
+MainTab:Toggle({
     Title = "Player ESP",
     Default = false,
     Callback = function(v)
@@ -145,15 +130,17 @@ MainTab:CreateToggle({
     end
 })
 
-MainTab:CreateSection("Movement")
-MainTab:CreateToggle({
+MainTab:Section({
+    Title = "Movement",
+})
+MainTab:Toggle({
     Title = "Speed Hack",
     Default = false,
     Callback = function(v)
         getgenv().MM2Config.speedEnabled = v
     end
 })
-MainTab:CreateSlider({
+MainTab:Slider({
     Title = "Speed Value",
     Min = 16,
     Max = 250,
@@ -162,7 +149,7 @@ MainTab:CreateSlider({
         getgenv().MM2Config.speedValue = v
     end
 })
-MainTab:CreateToggle({
+MainTab:Toggle({
     Title = "Noclip",
     Default = false,
     Callback = function(v)
@@ -170,46 +157,37 @@ MainTab:CreateToggle({
     end
 })
 
-MainTab:CreateSection("Misc")
-MainTab:CreateToggle({
-    Title = "No PC Error",
-    Default = false,
-    Callback = function(v)
-        getgenv().MM2Config.noPcError = v
-    end
-})
-
--- ===== TAB: SCRIPTS =====
-local ScriptsTab = Window:CreateTab({
+-- Scripts Tab
+local ScriptsTab = Window:Tab({
     Title = "Scripts",
     Icon = "rbxassetid://4483362458",
 })
-ScriptsTab:CreateButton({
+ScriptsTab:Button({
     Title = "Infinite Yield",
     Callback = function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
     end
 })
-ScriptsTab:CreateButton({
+ScriptsTab:Button({
     Title = "Dex Explorer",
     Callback = function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()
     end
 })
-ScriptsTab:CreateButton({
+ScriptsTab:Button({
     Title = "SimpleSpy",
     Callback = function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/78n/SimpleSpy/main/SimpleSpyBeta.lua"))()
     end
 })
 
--- ===== TAB: CREDITS =====
-local CreditsTab = Window:CreateTab({
+-- Credits Tab
+local CreditsTab = Window:Tab({
     Title = "Credits",
     Icon = "rbxassetid://4483362458",
 })
-CreditsTab:CreateLabel("Quantum X | Murder Mystery 2")
-CreditsTab:CreateLabel("ESP: murderer (red), sheriff (blue), innocent (green)")
-CreditsTab:CreateLabel("UI: WindUI (Footagesus)")
-CreditsTab:CreateLabel("Developed by Quantum Team")
-CreditsTab:CreateLabel("Discord: discord.gg/quantumx")
+CreditsTab:Label("Quantum X | Murder Mystery 2")
+CreditsTab:Label("ESP: murderer (red), sheriff (blue), innocent (green)")
+CreditsTab:Label("UI: WindUI (Footagesus)")
+CreditsTab:Label("Developed by Quantum Team")
+CreditsTab:Label("Discord: discord.gg/quantumx")
