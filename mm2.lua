@@ -1,6 +1,6 @@
 --[[
     Quantum X | Murder Mystery 2
-    ESP + Gun ESP + Teleport to Gun
+    ESP + Nameplates + Gun ESP + Teleport to Gun
 ]]
 
 if getgenv().QuantumX_MM2_Loaded then return end
@@ -37,25 +37,75 @@ local function getHumanoid()
     return c and c:FindFirstChildOfClass("Humanoid")
 end
 
--- ===== DETECT ROLE =====
-local function getRoleColor(plr)
+-- ===== DETECT ROLE (for player) =====
+local function getRoleInfo(plr)
     local char = plr.Character
-    if not char then return Color3.fromRGB(255,255,255) end
+    if not char then return "Unknown", Color3.fromRGB(255,255,255) end
 
     if char:FindFirstChild("Knife") or (plr.Backpack and plr.Backpack:FindFirstChild("Knife")) then
-        return Color3.fromRGB(255,0,0) -- red (murderer)
+        return "Murderer", Color3.fromRGB(255,0,0)
     end
     if char:FindFirstChild("Gun") or (plr.Backpack and plr.Backpack:FindFirstChild("Gun")) then
-        return Color3.fromRGB(0,100,255) -- blue (sheriff)
+        return "Sheriff", Color3.fromRGB(0,100,255)
     end
-    return Color3.fromRGB(0,255,0) -- green (innocent)
+    return "Innocent", Color3.fromRGB(0,255,0)
 end
 
--- ===== ESP LOOP (players) =====
+-- ===== CREATE NAMEPLATE (BillboardGui) =====
+local function createNameplate(plr, role, color)
+    local char = plr.Character
+    if not char then return end
+
+    -- Remove old nameplate if exists
+    local old = char:FindFirstChild("QuantumNameplate")
+    if old then old:Destroy() end
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "QuantumNameplate"
+    billboard.Adornee = char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
+    billboard.Size = UDim2.new(0, 200, 0, 30)
+    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+    billboard.AlwaysOnTop = true
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = string.format("%s\n%s", plr.Name, role)
+    label.TextColor3 = color
+    label.TextStrokeTransparency = 0.5
+    label.TextScaled = true
+    label.Font = Enum.Font.SourceSansBold
+    label.Parent = billboard
+
+    billboard.Parent = char
+end
+
+-- ===== UPDATE ALL NAMEPLATES =====
+local function updateNameplates()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= lp and plr.Character then
+            local role, color = getRoleInfo(plr)
+            createNameplate(plr, role, color)
+        end
+    end
+end
+
+-- ===== REMOVE ALL NAMEPLATES =====
+local function removeNameplates()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Character then
+            local old = plr.Character:FindFirstChild("QuantumNameplate")
+            if old then old:Destroy() end
+        end
+    end
+end
+
+-- ===== ESP LOOP (player highlights + nameplates) =====
 local function espLoop()
     while getgenv().MM2Config.espEnabled do
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= lp and plr.Character then
+                -- Highlight
                 local highlight = plr.Character:FindFirstChild("QuantumESP")
                 if not highlight then
                     highlight = Instance.new("Highlight", plr.Character)
@@ -65,71 +115,104 @@ local function espLoop()
                     highlight.OutlineTransparency = 0
                     highlight.OutlineColor = Color3.fromRGB(255,255,255)
                 end
-                highlight.FillColor = getRoleColor(plr)
+                local _, color = getRoleInfo(plr)
+                highlight.FillColor = color
+
+                -- Nameplate (update each loop to catch role changes)
+                createNameplate(plr, getRoleInfo(plr))
             end
         end
         task.wait(0.2)
     end
-    -- cleanup
+    -- cleanup when disabled
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= lp and plr.Character then
             local highlight = plr.Character:FindFirstChild("QuantumESP")
             if highlight then highlight:Destroy() end
         end
     end
+    removeNameplates()
 end
 
--- ===== GUN ESP LOOP =====
+-- ===== FIND DROPPED GUN (not held by any player) =====
+local function getDroppedGun()
+    local best, bestDist = nil, math.huge
+    local hrp = getChar() and getChar():FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and (obj.Name == "Gun" or obj.Name == "GunDrop" or obj.Name:lower():find("gun")) then
+            -- Check if this gun is inside a player's character (i.e., still held)
+            local held = false
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr.Character and obj:IsDescendantOf(plr.Character) then
+                    held = true
+                    break
+                end
+            end
+            if not held then
+                local part = obj:FindFirstChildWhichIsA("BasePart")
+                if part then
+                    local dist = (part.Position - hrp.Position).Magnitude
+                    if dist < bestDist then
+                        bestDist = dist
+                        best = part
+                    end
+                end
+            end
+        end
+    end
+    return best
+end
+
+-- ===== GUN ESP LOOP (only dropped guns) =====
 local function gunEspLoop()
     while getgenv().MM2Config.gunEspEnabled do
-        -- Search for dropped gun models
         for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("Model") and (obj.Name == "Gun" or obj.Name:find("Gun") or obj.Name == "GunDrop") then
-                local highlight = obj:FindFirstChild("GunESP")
-                if not highlight then
-                    highlight = Instance.new("Highlight", obj)
-                    highlight.Name = "GunESP"
-                    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                    highlight.FillTransparency = 0.3
-                    highlight.OutlineTransparency = 0
-                    highlight.OutlineColor = Color3.fromRGB(255,255,255)
+            if obj:IsA("Model") and (obj.Name == "Gun" or obj.Name == "GunDrop" or obj.Name:lower():find("gun")) then
+                -- Check if held
+                local held = false
+                for _, plr in ipairs(Players:GetPlayers()) do
+                    if plr.Character and obj:IsDescendantOf(plr.Character) then
+                        held = true
+                        break
+                    end
                 end
-                highlight.FillColor = Color3.fromRGB(255, 165, 0) -- orange
+                if not held then
+                    local highlight = obj:FindFirstChild("GunESP")
+                    if not highlight then
+                        highlight = Instance.new("Highlight", obj)
+                        highlight.Name = "GunESP"
+                        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        highlight.FillTransparency = 0.3
+                        highlight.OutlineTransparency = 0
+                        highlight.OutlineColor = Color3.fromRGB(255,255,255)
+                    end
+                    highlight.FillColor = Color3.fromRGB(255, 165, 0) -- orange
+                end
             end
         end
         task.wait(0.3)
     end
     -- cleanup
     for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") and (obj.Name == "Gun" or obj.Name:find("Gun") or obj.Name == "GunDrop") then
+        if obj:IsA("Model") and (obj.Name == "Gun" or obj.Name == "GunDrop" or obj.Name:lower():find("gun")) then
             local highlight = obj:FindFirstChild("GunESP")
             if highlight then highlight:Destroy() end
         end
     end
 end
 
--- ===== TELEPORT TO NEAREST GUN =====
+-- ===== TELEPORT TO DROPPED GUN =====
 local function teleportToGun()
     local hrp = getChar() and getChar():FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    local nearest, nearestDist = nil, math.huge
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") and (obj.Name == "Gun" or obj.Name:find("Gun") or obj.Name == "GunDrop") then
-            local part = obj:FindFirstChildWhichIsA("BasePart")
-            if part then
-                local dist = (part.Position - hrp.Position).Magnitude
-                if dist < nearestDist then
-                    nearestDist = dist
-                    nearest = part
-                end
-            end
-        end
-    end
-    if nearest then
-        hrp.CFrame = nearest.CFrame * CFrame.new(0, 2, 0)
+    local targetPart = getDroppedGun()
+    if targetPart then
+        hrp.CFrame = targetPart.CFrame * CFrame.new(0, 2, 0)
     else
-        warn("No gun found in the map")
+        warn("No dropped gun found on the map")
     end
 end
 
@@ -157,11 +240,25 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- ===== WINDUI GUI =====
+-- ===== WINDUI GUI (z motywem Amethyst) =====
 local Window = WindUI:CreateWindow({
     Title = "Quantum X | MM2",
     SubTitle = "by Quantum Team",
-    Size = UDim2.new(0, 450, 0, 380),
+    Size = UDim2.new(0, 500, 0, 450),
+    Transparent = true,
+    Theme = "Amethyst",
+    Resizable = true,
+    SideBarWidth = 200,
+    BackgroundImageTransparency = 0.42,
+    HideSearchBar = true,
+    ScrollBarEnabled = false,
+    User = {
+        Enabled = true,
+        Anonymous = false,
+        Callback = function()
+            print("User clicked")
+        end,
+    },
 })
 
 -- Main Tab
@@ -180,6 +277,8 @@ MainTab:Toggle({
         getgenv().MM2Config.espEnabled = v
         if v then
             task.spawn(espLoop)
+        else
+            -- cleanup will be done inside loop after exit
         end
     end
 })
@@ -225,7 +324,7 @@ MainTab:Section({
     Title = "Gun Teleport",
 })
 MainTab:Button({
-    Title = "Teleport to Nearest Gun",
+    Title = "Teleport to Nearest Dropped Gun",
     Callback = teleportToGun
 })
 
@@ -258,9 +357,9 @@ local CreditsTab = Window:Tab({
     Title = "Credits",
     Icon = "rbxassetid://4483362458",
 })
-CreditsTab:Label("Quantum X | Murder Mystery 2")
-CreditsTab:Label("ESP: murderer (red), sheriff (blue), innocent (green)")
-CreditsTab:Label("Gun ESP: orange highlight for dropped guns")
-CreditsTab:Label("UI: WindUI (Footagesus)")
-CreditsTab:Label("Developed by Quantum Team")
-CreditsTab:Label("Discord: discord.gg/quantumx")
+CreditsTab:AddLabel("Quantum X | Murder Mystery 2")
+CreditsTab:AddLabel("ESP: Murderer (red), Sheriff (blue), Innocent (green)")
+CreditsTab:AddLabel("Gun ESP: orange for dropped guns")
+CreditsTab:AddLabel("UI: WindUI (Footagesus)")
+CreditsTab:AddLabel("Developed by Quantum Team")
+CreditsTab:AddLabel("Discord: discord.gg/quantumx")
